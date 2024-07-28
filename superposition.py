@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import numpy as np
 import numpy.typing as npt
 #import matplotlib as mpl; mpl.use('tkagg'); mpl.rcParams['toolbar'] = 'None' # for windows 
@@ -129,7 +130,7 @@ class PolyGonalSynthesisVisualizer:
 
         wm = plt.get_current_fig_manager()
         # wm.window.state('zoomed') # for windows
-        #wm.full_screen_toggle() # for linux
+        wm.full_screen_toggle() # for linux
 
         self._figure = fig
         self._axis = axis
