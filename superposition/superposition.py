@@ -1,4 +1,6 @@
 #!/usr/bin/python
+import datetime
+import logging
 import numpy as np
 import numpy.typing as npt
 #import matplotlib as mpl; mpl.use('tkagg'); mpl.rcParams['toolbar'] = 'None' # for windows 
@@ -9,11 +11,13 @@ import pyaudio
 import serial
 import struct
 import sys
-
+from logging.handlers import TimedRotatingFileHandler
 from collections import namedtuple
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from dataclasses import dataclass
 from scipy import signal
+
+from ctypes import *
 
 device_count = 4
 
@@ -22,6 +26,23 @@ SAMPLE_RATE = 44100
 FRAME_SIZE = int(SAMPLE_RATE / DIVIDER)
 
 DRAW_POINTS = 18
+
+def setup_logger(name, logfile="./app.log"):
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    handler = TimedRotatingFileHandler(logfile, when='midnight', interval=1, backupCount=7, atTime=datetime.time(0,0,0))
+    handler.setLevel(logging.DEBUG)
+    handler_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
+    handler.setFormatter(handler_formatter)
+    logger.addHandler(handler)
+    return logger
+
+import os
+prjdir = os.path.dirname(__file__)
+
+logger = setup_logger(__name__, logfile=f"{prjdir}/logs/superpostion.log")
 
 def fold(v, vmin, vmax):
     range_v = vmax - vmin
@@ -171,7 +192,7 @@ def handle_message(index):
 
         def handle_serial(port):
             with serial.Serial(port, 38400) as ser:
-                print(f'connection established: "{port}"')
+                logger.info(f'connection established: "{port}"')
 
                 while True:
                     v = struct.unpack('B', ser.read(1))
@@ -215,16 +236,18 @@ def handle_message(index):
                 last_connection_status = True
             except serial.serialutil.SerialException as ex:
                 if last_connection_status:
-                    print(f'connection lost: try to connect "{port}"')
+                    logger.warning(f'connection lost: try to connect "{port}"')
                 time.sleep(2)
                 last_connection_status = False
             except Exception as ex:
-                print(ex)
+                logger.exception(ex)
 
     except Exception as ex:
-        print(ex)
+        logger.exception(ex)
 
 def main():
+    logging.info("start superpostion program")
+
     global is_running
     viz = PolyGonalSynthesisVisualizer(SAMPLE_RATE, device_count, plots_opts=[
         {"color":"r", "linewidth": .6},
@@ -293,6 +316,7 @@ def main():
     if pool:
         pool.shutdown(wait=False, cancel_futures=True)
 
+    logger.exception("superpostion process will be shuddown in minutes, bye!")
     is_running = False
 
 if __name__ == '__main__':
