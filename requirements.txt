@@ -10,3 +10,6 @@ pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 scipy==1.14.0
 six==1.16.0
+pyserial==3.5
+PyAudio==0.2.14
+PyQt5==5.15.11
