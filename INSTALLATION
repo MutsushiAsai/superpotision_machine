@@ -1,0 +1,27 @@
+this tools hides the mouse cursor if elapased certain time.
+refs: https://forums.raspberrypi.com/viewtopic.php?t=358083
+```
+sudo apt install unclutter
+```
+
+Set up an auto-start script to prevent the screen from going into power saving mode.
+```
+mkdir -p ~/.config/lxsession/LXDE-pi
+cp /etc/xdg/lxsession/LXDE-pi/autostart ~/.config/lxsession/LXDE-pi/
+vim ~/.config/lxsession/LXDE-pi/autostart
+```
+
+```
+@lxpanel --profile LXDE-pi
+@pcmanfm --desktop --profile LXDE-pi
+@xscreensaver -no-splash
+/usr/bin/python /home/metalium/wks/superposition/superposition/superposition.py
+
+@xset s 0 0
+@xset s noblank
+@xset s noexpose
+@xset dpms 0 0 0
+
+@unclutter -idle 1 -root
+```
+
