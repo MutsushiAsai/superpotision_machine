@@ -1,0 +1,7 @@
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnsLimit: 0
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
