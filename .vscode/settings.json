@@ -1,0 +1,17 @@
+{
+    "C_Cpp.clang_format_path": "/usr/bin/clang-format",
+    "C_Cpp.default.cppStandard": "c++17",
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "cmake.options.statusBarVisibility": "visible",
+    "files.associations": {
+        "functional": "cpp",
+        "mutex": "cpp",
+        "thread": "cpp",
+        "initializer_list": "cpp",
+        "*.ipp": "cpp",
+        "*.tcc": "cpp",
+        "fstream": "cpp"
+    }
+}
