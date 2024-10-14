@@ -2,6 +2,7 @@
 
 #include <armadillo>
 #include <boost/interprocess/ipc/message_queue.hpp>
+#include <exception>
 #include <iomanip>
 
 #include "constants.h"
@@ -72,6 +73,14 @@ void synthesize(arma::vec& t, PolygonalSynthesizerParams& param,
     double _fm_ratio = param.fm_ratio;
     double _fm_modulation = param.fm_modulation;
 
+    //_frequency = 141.73;
+    //_roll = 40.94;
+    //_n = 96.42;
+    //_teeth = 0.0155;
+    //_fold_ratio = 6.299;
+    //_fm_ratio = 0;
+    //_fm_modulation = 10.236;
+
     double theta_zero = datum::pi / _n;
     double T = datum::pi * (_n - 2) / (2 * _n) * _teeth;
 
@@ -97,24 +106,24 @@ void SynthesizeTask::process() {
     std::uint64_t last_hash = 0;
     common::SimpleScheduler scheduler(
         scheduler_io, 80, [this, &params, &mutex, &param_buffer, &last_hash]() {
-            double* param_array = reinterpret_cast<double*>(&params);
-            std::uint64_t cur_hash = xor_hash(param_array, 7);
-            if (cur_hash == last_hash) {
-                return;
-            }
+            // double* param_array = reinterpret_cast<double*>(&params);
+            //  std::uint64_t cur_hash = xor_hash(param_array, 7);
+            //  if (cur_hash == last_hash) {
+            //      return;
+            //  }
+            //  last_hash = cur_hash;
 
             std::lock_guard<std::mutex> lock(mutex);
             param_buffer.push(params);
 
-            last_hash = cur_hash;
-            std::cout << "fq: " << params.frequency << " ";
-            std::cout << "roll: " << params.roll << " ";
-            std::cout << "N: " << params.n << " ";
-            std::cout << "teeth: " << params.teeth << " ";
-            std::cout << "fold_ratio: " << params.fold_ratio << " ";
-            std::cout << "fm_ratio: " << params.fm_ratio << " ";
-            std::cout << "fm_modulation: " << params.fm_modulation << " "
-                      << std::endl;
+            // std::cout << "fq: " << params.frequency << " ";
+            // std::cout << "roll: " << params.roll << " ";
+            // std::cout << "N: " << params.n << " ";
+            // std::cout << "teeth: " << params.teeth << " ";
+            // std::cout << "fold_ratio: " << params.fold_ratio << " ";
+            // std::cout << "fm_ratio: " << params.fm_ratio << " ";
+            // std::cout << "fm_modulation: " << params.fm_modulation << " "
+            //           << std::endl;
         });
     scheduler.start();
 
@@ -168,13 +177,16 @@ void SynthesizeTask::process() {
         arma::vec t =
             T(arma::span(cur_idx * FRAME_SIZE, next_idx * FRAME_SIZE));
         synthesize(t, received_param, result);
+        _result_buffer.push(result);
 
         cur_idx = (next_idx == last_idx) ? 0 : cur_idx + 1;
     }
     try {
+        receiver_thread.join();
         scheduler_io.stop();
-    } catch (exception& e) {
-        std::cerr << e.what() << std::endl;
+        scheduler_thread.join();
+    } catch (std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
     }
 }
 

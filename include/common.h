@@ -24,7 +24,6 @@ class AbstractTask {
     }
 
     virtual ~AbstractTask() {
-        join();
     }
 
     virtual void start() {
@@ -49,9 +48,8 @@ class AbstractTask {
     }
     void join() {
         if (_thread.joinable()) {
-            return;
+            _thread.join();
         }
-        _thread.join();
     }
 };
 

@@ -30,18 +30,16 @@ MidiTask::MidiTask(std::string &device, unsigned int baudrate)
 }
 
 MidiTask::~MidiTask() {
-    if (_serial->is_open()) {
-        _serial->cancel();
-        _serial->close();
-    }
-
+    stop();
     delete _serial;
 }
 
 void MidiTask::stop() {
     AbstractTask::stop();
-    _serial->cancel();
-    _serial->close();
+    if (_serial->is_open()) {
+        _serial->cancel();
+        _serial->close();
+    }
 }
 
 void MidiTask::process() {
