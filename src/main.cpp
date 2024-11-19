@@ -2,7 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <algorithm>
 #include <armadillo>
-#include <boost/asio.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cmath>
 #include <csignal>
@@ -16,11 +16,20 @@
 #include "midi.h"
 #include "synthesize.h"
 
+#define DRAW_POINTS 220
+
 namespace spsynth = superposition::synthesize;
 namespace spmidi = superposition::midi;
 namespace bip = boost::interprocess;
 using namespace arma;
 using namespace boost;
+
+sf::Color colors[] = {
+    sf::Color::White,  // controller 1 line color
+    sf::Color::Red,    // controller 2 line color
+    sf::Color::Blue,   // controller 3 line color
+    sf::Color::Green,  // controller 4 line color
+};
 
 std::function<void(int)> shutdown_handler;
 void handle_shutdown(int signum) {
@@ -70,9 +79,9 @@ class SynthesizeSound : public sf::SoundStream {
 
     virtual void onSeek(sf::Time time_offset) override {
         _sample_index = SAMPLING_RATE * time_offset.asMilliseconds() * 0.001;
-        std::cout << "time_offset : " << time_offset.asMilliseconds()
-                  << std::endl;
-        std::cout << "sample_index: " << _sample_index << std::endl;
+        // std::cout << "time_offset : " << time_offset.asMilliseconds()
+        //           << std::endl;
+        // std::cout << "sample_index: " << _sample_index << std::endl;
     }
 
    private:
@@ -95,14 +104,14 @@ class SynthesizeController {
         _synthesize_task.start();
     }
 
-    void draw(sf::RenderTexture& texture) {
+    void draw(sf::RenderTexture& texture, sf::Color& color) {
         std::lock_guard<std::mutex> lock(_mutex);
         auto result_buffer = _synthesize_task.result_buffer();
         if (!result_buffer->pop(_last_result)) {
             return;
         }
 
-        sf::VertexArray points(sf::PrimitiveType::LineStrip, 441);
+        sf::VertexArray points(sf::PrimitiveType::LineStrip, DRAW_POINTS);
         auto x = _last_result.out1;
         auto y = _last_result.out2;
 
@@ -122,7 +131,7 @@ class SynthesizeController {
             double scaled_y = center_y - (y[i] * ploat_h * .5);
 
             points[i].position = sf::Vector2f(scaled_x, scaled_y);
-            points[i].color = sf::Color::White;
+            points[i].color = color;
         }
 
         texture.clear(sf::Color::Transparent);
@@ -151,14 +160,33 @@ class SynthesizeController {
 };
 
 int main(int argc, char** argv) {
-    SynthesizeController controller("/dev/ttyUSB0", 38400);
+    SynthesizeController controllers[] = {
+        SynthesizeController("/dev/ttyUSB0", 38400),
+        // SynthesizeController("/dev/ttyUSB1", 38400),
+    };
 
-    shutdown_handler = [&controller](int signum) { controller.stop(); };
+    std::function<void(void)> start_controllers = [&controllers]() {
+        for (auto& controller : controllers) {
+            controller.start();
+        }
+    };
+
+    std::function<void(void)> stop_controllers = [&controllers]() {
+        for (auto& controller : controllers) {
+            controller.stop();
+        }
+    };
+
+    shutdown_handler = [&controllers](int signum) {
+        for (auto& controller : controllers) {
+            controller.stop();
+        }
+    };
 
     std::signal(SIGKILL, handle_shutdown);
     std::signal(SIGTERM, handle_shutdown);
 
-    controller.start();
+    start_controllers();
 
     bool isFullscreen = true;
     sf::VideoMode desktopMode = sf::VideoMode::getDesktopMode();
@@ -169,14 +197,21 @@ int main(int argc, char** argv) {
     } else {
         window.create(desktopMode, "", sf::Style::Fullscreen);
     }
-    sf::RenderTexture texture1;
-    texture1.create(window.getSize().x, window.getSize().y);
+    sf::RenderTexture textures[4];
+
+    for (auto& texture : textures) {
+        texture.create(window.getSize().x, window.getSize().y);
+    }
 
     auto window_size = window.getSize();
     SynthesizeSound sound;
     std::vector<arma::vec> l_samples(4);
     std::vector<arma::vec> r_samples(4);
     sound.play();
+
+    arma::vec out1(FRAME_SIZE, arma::fill::zeros);
+    arma::vec out2(FRAME_SIZE, arma::fill::zeros);
+
     while (window.isOpen()) {
         l_samples.clear();
         r_samples.clear();
@@ -195,23 +230,40 @@ int main(int argc, char** argv) {
                 } else {
                     window.create(desktopMode, "", sf::Style::Fullscreen);
                 }
-                texture1.create(window.getSize().x, window.getSize().y);
+                for (auto& texture : textures) {
+                    texture.create(window.getSize().x, window.getSize().y);
+                }
+
                 isFullscreen = !isFullscreen;
             }
         }
 
-        controller.draw(texture1);
-        l_samples.push_back(controller.last_result().out1);
-        r_samples.push_back(controller.last_result().out2);
-
         window.clear();
-        window.draw(sf::Sprite(texture1.getTexture()));
+        out1.zeros();
+        out2.zeros();
+
+        for (int i = 0; i < std::size(controllers); i++) {
+            auto& texture = textures[i];
+            auto& controller = controllers[i];
+            auto color = colors[i];
+            controller.draw(texture, color);
+            out1 += controller.last_result().out1;
+            out2 += controller.last_result().out2;
+            window.draw(sf::Sprite(texture.getTexture()));
+        }
+
+        out1 /= std::size(controllers);
+        out2 /= std::size(controllers);
+
+        l_samples.push_back(out1);
+        r_samples.push_back(out2);
+
         window.display();
 
         sound.load_buffer(l_samples, r_samples);
     }
 
-    controller.stop();
+    stop_controllers();
 
     return 0;
 }

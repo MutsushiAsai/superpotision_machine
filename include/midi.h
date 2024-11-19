@@ -30,6 +30,7 @@ class MidiTask : public common::AbstractTask {
     MidiTask(std::string& device, unsigned int baudrate);
     virtual ~MidiTask();
 
+    virtual void open();
     virtual void process();
     virtual void stop();
 
@@ -38,9 +39,9 @@ class MidiTask : public common::AbstractTask {
     }
 
    private:
-    asio::serial_port* _serial;
+    asio::serial_port* _serial = NULL;
     asio::io_context _io;
-    std::string& _device;
+    std::string _device;
     unsigned int _baudrate;
     common::MessageBuffer<ControlChange> _message_buffer;
 };

@@ -73,14 +73,6 @@ void synthesize(arma::vec& t, PolygonalSynthesizerParams& param,
     double _fm_ratio = param.fm_ratio;
     double _fm_modulation = param.fm_modulation;
 
-    //_frequency = 141.73;
-    //_roll = 40.94;
-    //_n = 96.42;
-    //_teeth = 0.0155;
-    //_fold_ratio = 6.299;
-    //_fm_ratio = 0;
-    //_fm_modulation = 10.236;
-
     double theta_zero = datum::pi / _n;
     double T = datum::pi * (_n - 2) / (2 * _n) * _teeth;
 
@@ -106,16 +98,8 @@ void SynthesizeTask::process() {
     std::uint64_t last_hash = 0;
     common::SimpleScheduler scheduler(
         scheduler_io, 80, [this, &params, &mutex, &param_buffer, &last_hash]() {
-            // double* param_array = reinterpret_cast<double*>(&params);
-            //  std::uint64_t cur_hash = xor_hash(param_array, 7);
-            //  if (cur_hash == last_hash) {
-            //      return;
-            //  }
-            //  last_hash = cur_hash;
-
             std::lock_guard<std::mutex> lock(mutex);
             param_buffer.push(params);
-
             // std::cout << "fq: " << params.frequency << " ";
             // std::cout << "roll: " << params.roll << " ";
             // std::cout << "N: " << params.n << " ";
@@ -138,25 +122,25 @@ void SynthesizeTask::process() {
             mutex.lock();
             if (cc.channel == 0) {
                 params.frequency = map_range(static_cast<double>(cc.value), 0.0,
-                                             127.0, 0, 2000.0);
+                                             127.0, 0, 3000.0);
             } else if (cc.channel == 1) {
                 params.roll = map_range(static_cast<double>(cc.value), 0.0,
-                                        127.0, 0, 200.0);
+                                        127.0, 0.1, 200.0);
             } else if (cc.channel == 2) {
                 params.n = map_range(static_cast<double>(cc.value), 0.0, 127.0,
                                      2.1, 150.0);
             } else if (cc.channel == 3) {
                 params.teeth = map_range(static_cast<double>(cc.value), 0.0,
-                                         127.0, 0, 0.99);
+                                         127.0, 0.01, 0.99);
             } else if (cc.channel == 4) {
                 params.fold_ratio = map_range(static_cast<double>(cc.value),
-                                              0.0, 127.0, 0, 100.0);
+                                              0.0, 127.0, 0.1, 100.0);
             } else if (cc.channel == 5) {
                 params.fm_ratio = map_range(static_cast<double>(cc.value), 0.0,
-                                            127.0, 0, 10.0);
+                                            127.0, 0.01, 10.0);
             } else if (cc.channel == 6) {
                 params.fm_modulation = map_range(static_cast<double>(cc.value),
-                                                 0.0, 127.0, 0, 100.0);
+                                                 0.0, 127.0, 0.1, 100.0);
             }
 
             mutex.unlock();
@@ -175,7 +159,7 @@ void SynthesizeTask::process() {
         next_idx = cur_idx + 1;
 
         arma::vec t =
-            T(arma::span(cur_idx * FRAME_SIZE, next_idx * FRAME_SIZE));
+            T(arma::span(cur_idx * FRAME_SIZE, next_idx * FRAME_SIZE - 1));
         synthesize(t, received_param, result);
         _result_buffer.push(result);
 

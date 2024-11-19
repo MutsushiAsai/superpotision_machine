@@ -26,12 +26,10 @@ MidiTask::MidiTask(std::string &device, unsigned int baudrate)
       _device(device),
       _baudrate(baudrate),
       _message_buffer(100) {
-    _serial = new asio::serial_port(_io);
 }
 
 MidiTask::~MidiTask() {
     stop();
-    delete _serial;
 }
 
 void MidiTask::stop() {
@@ -42,25 +40,34 @@ void MidiTask::stop() {
     }
 }
 
+void MidiTask::open() {
+    if (_serial == NULL) {
+        _serial = new asio::serial_port(_io);
+    }
+
+    _serial->open(_device);
+    _serial->set_option(asio::serial_port_base::character_size(8));
+    _serial->set_option(asio::serial_port_base::stop_bits(
+        asio::serial_port_base::stop_bits::one));
+    _serial->set_option(
+        asio::serial_port_base::parity(asio::serial_port_base::parity::none));
+    _serial->set_option(asio::serial_port_base::flow_control(
+        asio::serial_port_base::flow_control::none));
+    _serial->set_option(asio::serial_port_base::baud_rate(_baudrate));
+}
+
 void MidiTask::process() {
-    try {
-        std::array<unsigned char, 3> buffer;
-        size_t read_size;
-        midi::ControlChange *cc;
+    std::array<unsigned char, 3> buffer;
+    size_t read_size;
+    midi::ControlChange *cc;
 
-        if (!_serial->is_open()) {
-            _serial->open(_device);
-            _serial->set_option(asio::serial_port_base::character_size(8));
-            _serial->set_option(asio::serial_port_base::stop_bits(
-                asio::serial_port_base::stop_bits::one));
-            _serial->set_option(asio::serial_port_base::parity(
-                asio::serial_port_base::parity::none));
-            _serial->set_option(asio::serial_port_base::flow_control(
-                asio::serial_port_base::flow_control::none));
-            _serial->set_option(asio::serial_port_base::baud_rate(_baudrate));
-        }
+    while (_is_started.load()) {
+        try {
+            if (_serial == NULL || !_serial->is_open()) {
+                open();
+                continue;
+            }
 
-        while (_is_started.load()) {
             read_size = asio::read(*_serial, asio::buffer(buffer, 1));
             if (read_size < 1) {
                 continue;
@@ -88,9 +95,11 @@ void MidiTask::process() {
             cc = (midi::ControlChange *)&buffer;
 
             _message_buffer.push(*cc);
+
+        } catch (std::exception &e) {
+            std::cerr << "error[" << _device << "]: " << e.what() << std::endl;
+            sleep(1);
         }
-    } catch (std::exception &e) {
-        std::cerr << "error: " << e.what() << std::endl;
     }
 }
 
